@@ -666,6 +666,7 @@ config FORCE_FAST_CHARGE
           Say Y here to enable normal charging to be run with 2500mA draw
           rather than the normal 1500mA-1800mA range.
 
+
 source "drivers/power/reset/Kconfig"
 
 endif # POWER_SUPPLY
