@@ -299,8 +299,3 @@ why =                                                                        \
 
 echo-why = $(call escsq, $(strip $(why)))
 endif
-<<<<<<< HEAD
-
-$(shell cd "$(srctree)" && ./scripts/fetch-latest-wireguard.sh)
-=======
->>>>>>> parent of 32fe6ff8f0bc... net/wireguard: add wireguard importer
