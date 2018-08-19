@@ -24,12 +24,12 @@ THREADS=$(nproc --all)
 ## clang specific values
 CTRIPLE=aarch64-linux-gnu-
 # Clang TC
-CC=~/Android/kernel/tc/clang/flash-clang-7.x/bin/clang
+CC=~/Android/kernel/tc/clang/flash-clang-8.x/bin/clang
 #Compiler string
 export KBUILD_COMPILER_STRING="$(${CC} --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g')"
 
 # Kernel Details
-VER=".R1"
+VER=".R2.8"
 
 # Paths
 KERNEL_DIR=`pwd`
