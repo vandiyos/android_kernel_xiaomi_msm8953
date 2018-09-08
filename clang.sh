@@ -21,15 +21,14 @@ ARCH=arm64
 
 ## Always use all threads
 THREADS=$(nproc --all)
-## clang specific values
-CTRIPLE=aarch64-linux-gnu-
-# Clang TC
-CC=~/Android/kernel/tc/clang/flash-clang-8.x/bin/clang
-#Compiler string
-export KBUILD_COMPILER_STRING="$(${CC} --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g')"
+export CLANG_PATH=~/Android/kernel/tc/clang/clang-8.x/bin
+export PATH=${CLANG_PATH}:${PATH}
+export CLANG_TRIPLE=aarch64-linux-gnu-
+export CROSS_COMPILE=${HOME}/Android/kernel/tc/gcc/aosp/aarch64-linux-android-4.9/bin/aarch64-linux-android-
+export CROSS_COMPILE_ARM32=${HOME}/Android/kernel/tc/gcc/aosp/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-
 
 # Kernel Details
-VER=".R2.8"
+VER=".R3.01"
 
 # Paths
 KERNEL_DIR=`pwd`
@@ -38,19 +37,6 @@ PATCH_DIR=~/Android/kernel/AnyKernel2/patch
 MODULES_DIR=~/Android/kernel/AnyKernel2/modules
 ZIP_MOVE=~/Android/kernel/AK-releases/
 ZIMAGE_DIR=~/Android/kernel/EAS/arch/arm64/boot
-
-
-# Unset CROSS_COMPILE and CCOMPILE if they're set
-[[ ! -z ${CROSS_COMPILE} ]] && unset CROSS_COMPILE
-[[ ! -z ${CCOMPILE} ]] && unset CCOMPILE
-
-# Use ccache when available
-if false; then
-[[ $(which ccache > /dev/null 2>&1; echo $?) -eq 0 ]] && CCOMPILE+="ccache "
-fi
-
-# Whenever you're high enough to run this script
-    CCOMPILE+=aarch64-linux-gnu-
 
 # Functions
 function clean_all {
@@ -64,8 +50,7 @@ function clean_all {
 function make_kernel {
 		echo
 		make $DEFCONFIG
-		make ARCH=${ARCH} CC="ccache ${CC}" CLANG_TRIPLE=${CTRIPLE} \
-		CROSS_COMPILE="${CCOMPILE}" -j${THREADS}
+		make ARCH=${ARCH} CC=clang -j${THREADS}
 
 }
 
@@ -78,7 +63,6 @@ function make_zip {
 		cp $KERNEL_DIR/arch/arm64/boot/dts/qcom/msm8953-qrd-sku3-mido-treble.dtb $REPACK_DIR/treble-supported/
 		cp $KERNEL_DIR/arch/arm64/boot/Image.gz $REPACK_DIR/kernel/
 		zip -r9 `echo $ZIP_NAME`.zip *
-		cp *.zip $ZIP_MOVE
 		cd $KERNEL_DIR
 }
 
@@ -94,7 +78,7 @@ echo -e "${restore}"
 
 
 # Vars
-BASE_AK_VER="BARACUDA"
+BASE_AK_VER="SYBERIA"
 DATE=`date +"%Y%m%d-%H%M"`
 AK_VER="$BASE_AK_VER$VER"
 ZIP_NAME="$AK_VER"-"$DATE"
