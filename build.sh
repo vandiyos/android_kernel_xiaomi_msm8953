@@ -124,7 +124,7 @@ else
 #    cd $srelease
 #    zip -r9 NinthHorcrux-Spectrum-$suffix.zip *
     cd $nsrelease
-    zip -r9 Syberia-Pie-$suffix.zip *
+    zip -r9 Soviet-Star-R2-$suffix.zip *
     cd $wd
     echo "Flashable zip made"
     echo
