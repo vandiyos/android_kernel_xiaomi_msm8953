@@ -51,7 +51,6 @@
 #if (defined CONFIG_MACH_XIAOMI_MIDO) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 #include <linux/mdss_io_util.h>
 #endif
-#include "klapse.h"
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
 #define CREATE_TRACE_POINTS
@@ -340,9 +339,6 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 							!mfd->bl_level)) {
 		mutex_lock(&mfd->bl_lock);
 		mdss_fb_set_backlight(mfd, bl_lvl);
-#ifdef CONFIG_KLAPSE
-		set_rgb_slider(bl_lvl);
-#endif
 		mutex_unlock(&mfd->bl_lock);
 	}
 }
