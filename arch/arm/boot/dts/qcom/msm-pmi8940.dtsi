@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -295,6 +296,7 @@
 			qcom,pmic-revid = <&pmi8940_revid>;
 			qcom,fg-cutoff-voltage-mv = <3500>;
 			qcom,cycle-counter-en;
+			qcom,hold-soc-while-full;
 			qcom,capacity-learning-on;
 
 			qcom,fg-soc@4000 {

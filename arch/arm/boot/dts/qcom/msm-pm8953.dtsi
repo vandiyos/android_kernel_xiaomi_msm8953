@@ -40,6 +40,10 @@
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
 				qcom,pull-up = <1>;
+				qcom,support-reset = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <0>;
+				qcom,s2-type = <7>;
 				linux,code = <116>;
 			};
 
@@ -151,7 +155,12 @@
 			gpio@c700 {
 				reg = <0xc700 0x100>;
 				qcom,pin-num = <8>;
-				status = "disabled";
+				#status = "disabled";
+				#qcom,mode = <0>; /* QPNP_PIN_MODE_DIG_IN */
+				#qcom,invert = <0>; /* QPNP_PIN_INVERT_DISABLE */
+				#qcom,pull = <0>; /* QPNP_PIN_PULL_UP_30 */
+				#qcom,src-sel = <0>; /* QPNP_PIN_SEL_FUNC_CONSTANT */
+				qcom,master-en = <0>;/* disable this gpio */
 			};
 		};
 
