@@ -1,131 +1,140 @@
 #!/bin/bash
+rm .version
+# Bash Color
+green='\033[01;32m'
+red='\033[01;31m'
+blink_red='\033[05;31m'
+restore='\033[0m'
 
-## Pipefail
-set -o pipefail
+clear
 
-## Parse options
+# Resources
+THREAD="-j$(grep -c ^processor /proc/cpuinfo)"
+KERNEL="Image"
+DTBIMAGE="dtb"
 
-# set defaults
-wd=$(pwd)
-tc="$HOME/syberia/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9//bin/aarch64-linux-android-"
-mod=""
-out=$wd/out
-fresh="true"
-boot=$out/arch/arm64/boot/
-jc="j$(grep -c ^processor /proc/cpuinfo)"
-user="NATO66613"
-host="PENTAGON"
-log=""
-ct="aarch64-linux-gnu-"
-cc="$HOME/linux-x86/clang-r328903/bin/clang"
+DEFCONFIG="mido_defconfig"
 
-# read the options
-TEMP=`getopt -o w:t:m:o:f:b:j:u:h:l:t:c --long workdir:,toolchain:,modifier:,out:,fresh:,boot:,jobcount:,user:,host:,log:,clang_triple:,clang_compile: -- "$@"`
-eval set -- "$TEMP"
 
-# extract options and their arguments into variables.
-while true ; do
-    case "$1" in
-        -w|--workdir)
-            wd=$2 ; shift 2 ;;
-        -t|--toolchain)
-            tc=$2 ; shift 2 ;;
-        -m|modifier)
-            mod=$2 ; shift 2 ;;
-        -o|--out)
-        	out=$2 ; shift 2 ;;
-		-f|--fresh)
-			fresh=$2 ; shift 2 ;;
-		-b|--boot)
-			boot=$2 ; shift 2 ;;
-		-j|--jobcount)
-			jc=$2 ; shift 2 ;;
-        -l|--log)
-            log=$2 ; shift 2 ;;
-        -u|--user)
-            user=$2 ; shift 2 ;;
-        -h|--host)
-            host=$2 ; shift 2 ;;
-        -t|--clang_triple)
-            ct=$2 ; shift 2 ;;
-        -c|clang_compile)
-            cc=$2 ; shift 2 ;;
-		--) shift ; break ;;
-        *) echo "Internal error!" ; exit 1 ;;
-    esac
+## Always ARM64
+ARCH=arm64
+
+# Paths
+KERNEL_DIR=`pwd`
+REPACK_DIR=$KERNEL_DIR/AnyKernel2/
+PATCH_DIR=$KERNEL_DIR/AnyKernel2/patch
+MODULES_DIR=$KERNEL_DIR/AnyKernel2/modules
+ZIP_MOVE=$KERNEL_DIR/AK-releases/
+ZIMAGE_DIR=$KERNEL_DIR/out/arch/arm64/boot
+
+# Vars
+BASE_AK_VER="SOVIET-STAR"
+DATE=`date +"%Y%m%d-%H%M"`
+AK_VER="$BASE_AK_VER$VER"
+ZIP_NAME="$AK_VER"-"$DATE"
+export LOCALVERSION=~`echo $AK_VER`
+export LOCALVERSION=~`echo $AK_VER`
+export ARCH=arm64
+export SUBARCH=arm64
+export KBUILD_BUILD_USER=NATO66613
+export KBUILD_BUILD_HOST=PENTAGON
+
+## Always use all threads
+THREADS=$(nproc --all)
+export CLANG_PATH=${HOME}/syberia/prebuilts/clang/host/linux-x86/clang-r353983b/bin
+export PATH=${CLANG_PATH}:${PATH}
+export CLANG_TRIPLE=aarch64-linux-gnu-
+export CROSS_COMPILE=${HOME}/syberia/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-gnu-8.x/bin/aarch64-linux-gnu-
+export CROSS_COMPILE_ARM32=${HOME}/syberia/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-
+
+# Kernel Details
+VER=".R3.01"
+
+# Functions
+function clean_all {
+		cd $REPACK_DIR
+		rm *.zip
+		rm Image.gz-dtb
+		cd $KERNEL_DIR
+		make O=out clean && make O=out mrproper
+}
+
+function make_kernel {
+		echo
+		make O=out $DEFCONFIG
+		make O=out ARCH=${ARCH} CC=clang -j${THREADS}
+
+}
+
+function make_zip {
+		cp $ZIMAGE_DIR/Image.gz-dtb $REPACK_DIR/
+		cd $REPACK_DIR
+		zip -r9 `echo $ZIP_NAME`.zip *
+		cd $KERNEL_DIR
+}
+
+
+DATE_START=$(date +"%s")
+
+
+echo -e "${green}"
+echo "-----------------"
+echo "Making SOVIET Kernel:"
+echo "-----------------"
+echo -e "${restore}"
+
+
+echo
+
+while read -p "Do you want to clean stuffs (y/n)? " cchoice
+do
+case "$cchoice" in
+	y|Y )
+		clean_all
+		echo
+		echo "All Cleaned now."
+		break
+		;;
+	n|N )
+		break
+		;;
+	* )
+		echo
+		echo "Invalid try again!"
+		echo
+		;;
+esac
 done
 
-# print set options
-echo
-echo "Configured options
-workdir = $wd 
-toolchain = $tc 
-modifier = $mod 
-out = $out 
-fresh = $fresh 
-boot = $boot 
-jobcount = $jc 
-user = $user
-host = $host
-log = $log
-clang-triple = $ct
-clang_compile = $cc "
 echo
 
-## Set user and host
-export KBUILD_BUILD_USER=$user
-export KBUILD_BUILD_HOST=$host
+while read -p "Do you want to build?" dchoice
+do
+case "$dchoice" in
+	y|Y )
+		make_kernel
+		make_zip
+		break
+		;;
+	n|N )
+		break
+		;;
+	* )
+		echo
+		echo "Invalid try again!"
+		echo
+		;;
+esac
+done
 
-## Start building
+echo -e "${green}"
+echo "-------------------"
+echo "Build Completed in:"
+echo "-------------------"
+echo -e "${restore}"
 
-# clean out previous log
-rm -rf $log
-
-# clean out directory
-if [ $fresh = "true" ]; then
-	echo "Cleaning up"
-	make clean O=$out
-	make mrproper O=$out
-    echo
-fi
-
-# compile
-echo "Preparing kernel config"
-make O=out ARCH=arm64 mido_defconfig |& tee -a $log
-status=$?
-if [ $status != 0 ]; then
-	echo "You don't have a valid config for your device, code $status"
-    exit $status
-fi
+DATE_END=$(date +"%s")
+DIFF=$(($DATE_END - $DATE_START))
+echo "Time: $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) seconds."
 echo
-echo "Compiling Kernel and making zip"
-echo
-if [ "$mod" = "clang" ]; then
-    make -$jc ARCH=arm64 O=$out CROSS_COMPILE=$tc CC=$cc CLANG_TRIPLE=$ct |& tee -a $log
-else
-    make -$jc ARCH=arm64 O=$out CROSS_COMPILE=$tc |& tee -a $log
-fi
-status=$?
-if [ $status != 0 ]; then
-	echo "Building interrupted, code $status"
-	exit $status
-else
-    # make zip
-    echo
-    echo "Making Flashable Zip"
-    image=$boot/Image.gz-dtb
-    suffix=$(date +%Y%m%d-%H%M%S)
-    srelease=$wd/spectrum
-    nsrelease=$wd/nospectrum
-    rm -f $srelease/*.zip $nsrelease/*.zip
-    rm -f $nsrelease/zImage $nsrelease/zImage
-    cp $image $srelease
-    cp $image $nsrelease
-#    cd $srelease
-#    zip -r9 NinthHorcrux-Spectrum-$suffix.zip *
-    cd $nsrelease
-    zip -r9 Soviet-Star-R2-$suffix.zip *
-    cd $wd
-    echo "Flashable zip made"
-    echo
-fi
+
