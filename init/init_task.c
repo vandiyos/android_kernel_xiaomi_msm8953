@@ -17,10 +17,6 @@ static struct sighand_struct init_sighand = INIT_SIGHAND(init_sighand);
 
 /* Initial task structure */
 struct task_struct init_task = INIT_TASK(init_task);
-#ifdef CONFIG_UCLAMP_TASK
-	.uclamp[UCLAMP_MIN] = 0,
-	.uclamp[UCLAMP_MAX] = SCHED_CAPACITY_SCALE,
-#endif
 EXPORT_SYMBOL(init_task);
 
 /*
