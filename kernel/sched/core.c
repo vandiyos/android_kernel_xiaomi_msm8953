@@ -917,6 +917,28 @@ static void set_load_weight(struct task_struct *p)
 	load->inv_weight = prio_to_wmult[prio];
 }
 
+#ifdef CONFIG_UCLAMP_TASK
+static inline int __setscheduler_uclamp(struct task_struct *p,
+					const struct sched_attr *attr)
+{
+	if (attr->sched_util_min > attr->sched_util_max)
+		return -EINVAL;
+	if (attr->sched_util_max > SCHED_CAPACITY_SCALE)
+		return -EINVAL;
+
+	p->uclamp[UCLAMP_MIN] = attr->sched_util_min;
+	p->uclamp[UCLAMP_MAX] = attr->sched_util_max;
+
+	return 0;
+}
+#else /* CONFIG_UCLAMP_TASK */
+static inline int __setscheduler_uclamp(struct task_struct *p,
+					const struct sched_attr *attr)
+{
+	return -EINVAL;
+}
+#endif /* CONFIG_UCLAMP_TASK */
+
 static inline void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
 	update_rq_clock(rq);
@@ -2283,6 +2305,11 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 
 		p->prio = p->normal_prio = __normal_prio(p);
 		set_load_weight(p);
+
+#ifdef CONFIG_UCLAMP_TASK
+		p->uclamp[UCLAMP_MIN] = 0;
+		p->uclamp[UCLAMP_MAX] = SCHED_CAPACITY_SCALE;
+#endif
 
 		/*
 		 * We don't need the reset flag anymore after the fork. It has
@@ -3965,6 +3992,13 @@ recheck:
 		if (retval)
 			return retval;
 	}
+	
+	/* Configure utilization clamps for the task */
+	if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP) {
+		retval = __setscheduler_uclamp(p, attr);
+		if (retval)
+			return retval;
+	}
 
 	/*
 	 * make sure no PI-waiters arrive (or leave) while we are
@@ -4457,6 +4491,11 @@ SYSCALL_DEFINE4(sched_getattr, pid_t, pid, struct sched_attr __user *, uattr,
 		attr.sched_priority = p->rt_priority;
 	else
 		attr.sched_nice = task_nice(p);
+
+#ifdef CONFIG_UCLAMP_TASK
+	attr.sched_util_min = p->uclamp[UCLAMP_MIN];
+	attr.sched_util_max = p->uclamp[UCLAMP_MAX];
+#endif
 
 	rcu_read_unlock();
 
