@@ -786,6 +786,8 @@ void do_exit(long code)
 	cgroup_exit(tsk);
 
 	module_put(task_thread_info(tsk)->exec_domain->module);
+	
+	uclamp_exit_task(tsk);
 
 	/*
 	 * FIXME: do that only when needed, using sched_exit tracepoint

@@ -948,9 +948,19 @@ enum cpu_idle_type {
 };
 
 /*
+ * Integer metrics need fixed point arithmetic, e.g., sched/fair
+ * has a few: load, load_avg, util_avg, freq, and capacity.
+ *
+ * We define a basic fixed point arithmetic range, and then formalize
+ * all these metrics based on that basic range.
+ */
+# define SCHED_FIXEDPOINT_SHIFT		10
+# define SCHED_FIXEDPOINT_SCALE		(1L << SCHED_FIXEDPOINT_SHIFT)
+
+/*
  * Increase resolution of cpu_capacity calculations
  */
-#define SCHED_CAPACITY_SHIFT	10
+#define SCHED_CAPACITY_SHIFT	SCHED_FIXEDPOINT_SHIFT
 #define SCHED_CAPACITY_SCALE	(1L << SCHED_CAPACITY_SHIFT)
 
 struct sched_capacity_reqs {
@@ -1496,6 +1506,37 @@ struct sched_dl_entity {
 	struct hrtimer dl_timer;
 };
 
+#ifdef CONFIG_UCLAMP_TASK
+/*
+ * Number of utiliation clamp groups
+ *
+ * The first clamp group (group_id=0) is used to track non clamped tasks, i.e.
+ * util_{min,max} (0,SCHED_CAPACITY_SCALE). Thus we allocate one more group in
+ * addition to the configured number.
+ */
+#define UCLAMP_GROUPS (CONFIG_UCLAMP_GROUPS_COUNT + 1)
+
+/**
+ * Utilization clamp group
+ *
+ * A utilization clamp group maps a:
+ *   clamp value (value), i.e.
+ *   util_{min,max} value requested from userspace
+ * to a:
+ *   clamp group index (group_id), i.e.
+ *   index of the per-cpu RUNNABLE tasks refcounting array
+ *
+ * The mapped bit is set whenever a task has been mapped on a clamp group for
+ * the first time. When this bit is set, any clamp group get (for a new clamp
+ * value) will be matches by a clamp group put (for the old clamp value).
+ */
+struct uclamp_se {
+	unsigned int value		: SCHED_CAPACITY_SHIFT + 1;
+	unsigned int group_id		: order_base_2(UCLAMP_GROUPS);
+	unsigned int mapped		: 1;
+};
+#endif /* CONFIG_UCLAMP_TASK */
+
 union rcu_special {
 	struct {
 		bool blocked;
@@ -1552,7 +1593,7 @@ struct task_struct {
 
 #ifdef CONFIG_UCLAMP_TASK
 	/* Utlization clamp values for this task */
-	int				uclamp[UCLAMP_CNT];
+	struct uclamp_se		uclamp[UCLAMP_CNT];
 #endif
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
@@ -2757,6 +2798,12 @@ extern int copy_thread(unsigned long, unsigned long, unsigned long,
 			struct task_struct *);
 extern void flush_thread(void);
 extern void exit_thread(void);
+
+#ifdef CONFIG_UCLAMP_TASK
+extern void uclamp_exit_task(struct task_struct *p);
+#else
+static inline void uclamp_exit_task(struct task_struct *p) { }
+#endif /* CONFIG_UCLAMP_TASK */
 
 extern void exit_files(struct task_struct *);
 extern void __cleanup_sighand(struct sighand_struct *);
