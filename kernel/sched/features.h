@@ -134,3 +134,8 @@ SCHED_FEAT(SCHEDTUNE_BOOST_HOLD_ALL, false)
  * UtilEstimation. Use estimated CPU utilization.
  */
 SCHED_FEAT(UTIL_EST, false)
+
+/*
+ * Utilization clamping lazy update.
+ */
+SCHED_FEAT(UCLAMP_LAZY_UPDATE, false)
