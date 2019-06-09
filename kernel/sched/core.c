@@ -1408,7 +1408,7 @@ static inline void uclamp_group_get_tg(struct cgroup_subsys_state *css,
 		return;
 
 	/* Update clamp groups for RUNNABLE tasks in this TG */
-	css_task_iter_start(css, 0, &it);
+	css_task_iter_start(css, 0);
 	while ((p = css_task_iter_next(&it)))
 		uclamp_task_update_active(p, clamp_id);
 	css_task_iter_end(&it);
