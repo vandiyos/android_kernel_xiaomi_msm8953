@@ -1144,9 +1144,8 @@ static inline unsigned int uclamp_effective_group_id(struct task_struct *p,
 			clamp_value = clamp_max;
 			group_id = group_max;
 		}
-#endif
-		goto done;
 	}
+#endif
 
 	/* RT tasks have different default values */
 	default_clamp = task_has_rt_policy(p)
