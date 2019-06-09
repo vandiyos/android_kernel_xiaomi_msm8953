@@ -1121,6 +1121,7 @@ static inline bool uclamp_apply_defaults(struct task_struct *p)
 static inline unsigned int uclamp_effective_group_id(struct task_struct *p,
 						     unsigned int clamp_id)
 {
+	struct uclamp_se *default_clamp;
 	unsigned int clamp_value;
 	unsigned int group_id;
 
