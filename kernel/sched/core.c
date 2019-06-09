@@ -1334,7 +1334,7 @@ static inline void uclamp_cpu_put(struct rq *rq, struct task_struct *p)
 static inline void
 uclamp_task_update_active(struct task_struct *p, unsigned int clamp_id)
 {
-	struct rq_flags rf;
+	unsigned long flags;
 	struct rq *rq;
 
 	/*
@@ -1345,7 +1345,7 @@ uclamp_task_update_active(struct task_struct *p, unsigned int clamp_id)
 	 * enqueues, dequeues and migration operations.
 	 * This is the same locking schema used by __set_cpus_allowed_ptr().
 	 */
-	rq = task_rq_lock(p, &rf);
+	rq = task_rq_lock(p, &flags);
 
 	/*
 	 * The setting of the clamp group is serialized by task_rq_lock().
@@ -1360,7 +1360,7 @@ uclamp_task_update_active(struct task_struct *p, unsigned int clamp_id)
 	uclamp_cpu_get_id(p, rq, clamp_id);
 
 done:
-	task_rq_unlock(rq, p, &rf);
+	task_rq_unlock(rq, p, &flags);
 }
 
 /**
