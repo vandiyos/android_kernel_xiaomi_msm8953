@@ -350,9 +350,23 @@ static void sugov_set_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
 	}
 }
 
+/**
+ * sugov_iowait_boost() - Updates the IO boost status of a CPU.
+ * @sg_cpu: the sugov data for the CPU to boost
+ * @time: the update time from the caller
+ * @flags: SCHED_CPUFREQ_IOWAIT if the task is waking up after an IO wait
+ *
+ * Each time a task wakes up after an IO operation, the CPU utilization can be
+ * boosted to a certain utilization which doubles at each "frequent and
+ * successive" wakeup from IO, ranging from the utilization of the minimum
+ * OPP to the utilization of the maximum OPP.
+ * To keep doubling, an IO boost has to be requested at least once per tick,
+ * otherwise we restart from the utilization of the minimum OPP.
+ */
 static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, unsigned long *util,
 			       unsigned long *max)
 {
+	bool set_iowait_boost = SCHED_CPUFREQ_IOWAIT;
 	unsigned int boost_util, boost_max;
 
 	if (!sg_cpu->iowait_boost)
@@ -375,6 +389,39 @@ static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, unsigned long *util,
 		*util = boost_util;
 		*max = boost_max;
 	}
+
+	/* Boost only tasks waking up after IO */
+	if (!set_iowait_boost)
+		return;
+
+	/* Ensure boost doubles only one time at each request */
+	if (sg_cpu->iowait_boost_pending)
+		return;
+	sg_cpu->iowait_boost_pending = true;
+
+	/*
+	 * Boost FAIR tasks only up to the CPU clamped utilization.
+	 *
+	 * Since DL tasks have a much more advanced bandwidth control, it's
+	 * safe to assume that IO boost does not apply to those tasks.
+	 * Instead, since RT tasks are not utiliation clamped, we don't want
+	 * to apply clamping on IO boost while there is blocked RT
+	 * utilization.
+	 */
+	boost_max = sg_cpu->iowait_boost_max;
+	if (!cpu_util_irq(cpu_rq(sg_cpu->max)))
+		boost_max = uclamp_util(cpu_rq(sg_cpu->max), boost_max);
+
+	/* Double the boost at each request */
+	if (sg_cpu->iowait_boost) {
+		sg_cpu->iowait_boost <<= 1;
+		if (sg_cpu->iowait_boost > boost_max)
+			sg_cpu->iowait_boost = boost_max;
+		return;
+	}
+
+	/* First wakeup after IO: start with minimum boost */
+	sg_cpu->iowait_boost = sg_cpu->sg_policy->policy->min;
 }
 
 #ifdef CONFIG_NO_HZ_COMMON
