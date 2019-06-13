@@ -351,6 +351,33 @@ static void sugov_set_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
 }
 
 /**
+ * sugov_iowait_reset() - Reset the IO boost status of a CPU.
+ * @sg_cpu: the sugov data for the CPU to boost
+ * @time: the update time from the caller
+ * @set_iowait_boost: true if an IO boost has been requested
+ *
+ * The IO wait boost of a task is disabled after a tick since the last update
+ * of a CPU. If a new IO wait boost is requested after more then a tick, then
+ * we enable the boost starting from the minimum frequency, which improves
+ * energy efficiency by ignoring sporadic wakeups from IO.
+ */
+static bool sugov_iowait_reset(struct sugov_cpu *sg_cpu, u64 time,
+			       bool set_iowait_boost)
+{
+	s64 delta_ns = time - sg_cpu->last_update;
+
+	/* Reset boost only if a tick has elapsed since last request */
+	if (delta_ns <= TICK_NSEC)
+		return false;
+
+	sg_cpu->iowait_boost = set_iowait_boost
+		? sg_cpu->sg_policy->policy->min : 0;
+	sg_cpu->iowait_boost_pending = set_iowait_boost;
+
+	return true;
+}
+
+/**
  * sugov_iowait_boost() - Updates the IO boost status of a CPU.
  * @sg_cpu: the sugov data for the CPU to boost
  * @time: the update time from the caller
@@ -363,32 +390,16 @@ static void sugov_set_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
  * To keep doubling, an IO boost has to be requested at least once per tick,
  * otherwise we restart from the utilization of the minimum OPP.
  */
-static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, unsigned long *util,
-			       unsigned long *max)
+static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
+			       unsigned long *util, unsigned long *max)
 {
 	bool set_iowait_boost = SCHED_CPUFREQ_IOWAIT;
 	unsigned int boost_util, boost_max;
 
-	if (!sg_cpu->iowait_boost)
+	/* Reset boost if the CPU appears to have been idle enough */
+	if (sg_cpu->iowait_boost &&
+	    sugov_iowait_reset(sg_cpu, time, set_iowait_boost))
 		return;
-
-	if (sg_cpu->iowait_boost_pending) {
-		sg_cpu->iowait_boost_pending = false;
-	} else {
-		sg_cpu->iowait_boost >>= 1;
-		if (sg_cpu->iowait_boost < sg_cpu->sg_policy->policy->min) {
-			sg_cpu->iowait_boost = 0;
-			return;
-		}
-	}
-
-	boost_util = sg_cpu->iowait_boost;
-	boost_max = sg_cpu->iowait_boost_max;
-
-	if (*util * boost_max < *max * boost_util) {
-		*util = boost_util;
-		*max = boost_max;
-	}
 
 	/* Boost only tasks waking up after IO */
 	if (!set_iowait_boost)
@@ -422,6 +433,61 @@ static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, unsigned long *util,
 
 	/* First wakeup after IO: start with minimum boost */
 	sg_cpu->iowait_boost = sg_cpu->sg_policy->policy->min;
+
+	/**
+	 * sugov_iowait_apply() - Apply the IO boost to a CPU.
+	 * @sg_cpu: the sugov data for the cpu to boost
+	 * @time: the update time from the caller
+	 * @util: the utilization to (eventually) boost
+	 * @max: the maximum value the utilization can be boosted to
+	 *
+	 * A CPU running a task which woken up after an IO operation can have its
+	 * utilization boosted to speed up the completion of those IO operations.
+	 * The IO boost value is increased each time a task wakes up from IO, in
+	 * sugov_iowait_apply(), and it's instead decreased by this function,
+	 * each time an increase has not been requested (!iowait_boost_pending).
+	 *
+	 * A CPU which also appears to have been idle for at least one tick has also
+	 * its IO boost utilization reset.
+	 *
+	 * This mechanism is designed to boost high frequently IO waiting tasks, while
+	 * being more conservative on tasks which does sporadic IO operations.
+	 */
+	if (!sg_cpu->iowait_boost)
+		return;
+
+	/* Reset boost if the CPU appears to have been idle enough */
+	if (sugov_iowait_reset(sg_cpu, time, false))
+		return;
+
+	/*
+	 * An IO waiting task has just woken up:
+	 * allow to further double the boost value
+	 */
+	if (sg_cpu->iowait_boost_pending) {
+		sg_cpu->iowait_boost_pending = false;
+	} else {
+		/*
+		 * Otherwise: reduce the boost value and disable it when we
+		 * reach the minimum.
+		 */
+		sg_cpu->iowait_boost >>= 1;
+		if (sg_cpu->iowait_boost < sg_cpu->sg_policy->policy->min) {
+			sg_cpu->iowait_boost = 0;
+			return;
+		}
+	}
+
+	/*
+	 * Apply the current boost value: a CPU is boosted only if its current
+	 * utilization is smaller then the current IO boost level.
+	 */
+	boost_util = sg_cpu->iowait_boost;
+	boost_max = sg_cpu->iowait_boost_max;
+	if (*util * boost_max < *max * boost_util) {
+		*util = boost_util;
+		*max = boost_max;
+	}
 }
 
 #ifdef CONFIG_NO_HZ_COMMON
@@ -466,7 +532,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 		next_f = policy->cpuinfo.max_freq;
 	} else {
 		sugov_get_util(&util, &max, time);
-		sugov_iowait_boost(sg_cpu, &util, &max);
+		sugov_iowait_boost(sg_cpu, time, &util, &max);
 		next_f = get_next_freq(sg_policy, util, max);
 		/*
 		 * Do not reduce the frequency if the CPU has not been idle
@@ -517,7 +583,7 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 			max = j_max;
 		}
 
-		sugov_iowait_boost(j_sg_cpu, &util, &max);
+		sugov_iowait_boost(j_sg_cpu, time, &util, &max);
 	}
 
 	return get_next_freq(sg_policy, util, max);
