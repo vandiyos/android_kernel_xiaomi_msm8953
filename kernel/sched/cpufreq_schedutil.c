@@ -219,11 +219,8 @@ static inline bool use_pelt(void)
 unsigned long schedutil_freq_util(int cpu, unsigned long util_cfs,
 				  unsigned long max, enum schedutil_type type)
 {
-	unsigned long dl_util, util, irq;
 	struct rq *rq = cpu_rq(cpu);
-
-	if (type == FREQUENCY_UTIL)
-		return max;
+	unsigned long util, irq;
 
 	/*
 	 * Early check to see if IRQ/steal time saturates the CPU, can be
@@ -240,29 +237,38 @@ unsigned long schedutil_freq_util(int cpu, unsigned long util_cfs,
 	 * utilization (PELT windows are synchronized) we can directly add them
 	 * to obtain the CPU's actual utilization.
 	 */
-	util = util_cfs;
-	util += cpu_util_irq(rq);
+	util = cpu_util_rt(rq) + util_cfs;
 
-	dl_util = cpu_util_irq(rq);
-
-	/*
-	 * For frequency selection we do not make cpu_util_dl() a permanent part
-	 * of this sum because we want to use cpu_bw_dl() later on, but we need
-	 * to check if the CFS+RT+DL sum is saturated (ie. no idle time) such
-	 * that we select f_max when there is no idle time.
-	 *
-	 * NOTE: numerical errors or stop class might cause us to not quite hit
-	 * saturation when we should -- something for later.
-	 */
-	if (util + dl_util >= max)
-		return max;
-
-	/*
-	 * OTOH, for energy computation we need the estimated running time, so
-	 * include util_dl and ignore dl_bw.
-	 */
-	if (type == ENERGY_UTIL)
-		util += dl_util;
+	if (type == FREQUENCY_UTIL) {
+		/*
+		 * For frequency selection we do not make cpu_util_dl() a
+		 * permanent part of this sum because we want to use
+		 * cpu_bw_dl() later on, but we need to check if the
+		 * CFS+RT+DL sum is saturated (ie. no idle time) such
+		 * that we select f_max when there is no idle time.
+		 *
+		 * NOTE: numerical errors or stop class might cause us
+		 * to not quite hit saturation when we should --
+		 * something for later.
+		 *
+		 * CFS and RT utilization can be boosted or capped, depending
+		 * on utilization clamp constraints requested by currently
+		 * RUNNABLE tasks.  When there are no CFS RUNNABLE tasks,
+		 * clamps are released and OPPs will be gracefully reduced
+		 * with the utilization decay.
+		 */
+		util = uclamp_util(rq, util);
+		if ((util + cpu_util_dl(rq)) >= max)
+			return max;
+	} else {
+		/*
+		 * OTOH, for energy computation we need the estimated
+		 * running time, so include util_dl and ignore dl_bw.
+		 */
+		util += cpu_util_dl(rq);
+		if (util >= max)
+			return max;
+	}
 
 	/*
 	 * There is still idle time; further improve the number by using the
@@ -276,18 +282,21 @@ unsigned long schedutil_freq_util(int cpu, unsigned long util_cfs,
 	util = scale_irq_capacity(util, irq, max);
 	util += irq;
 
-	/*
-	 * Bandwidth required by DEADLINE must always be granted while, for
-	 * FAIR and RT, we use blocked utilization of IDLE CPUs as a mechanism
-	 * to gracefully reduce the frequency when no tasks show up for longer
-	 * periods of time.
-	 *
-	 * Ideally we would like to set bw_dl as min/guaranteed freq and util +
-	 * bw_dl as requested freq. However, cpufreq is not yet ready for such
-	 * an interface. So, we only do the latter for now.
-	 */
-	if (type == FREQUENCY_UTIL)
-		util += cpu_util_irq(rq);
+	if (type == FREQUENCY_UTIL) {
+		/*
+		 * Bandwidth required by DEADLINE must always be granted
+		 * while, for FAIR and RT, we use blocked utilization of
+		 * IDLE CPUs as a mechanism to gracefully reduce the
+		 * frequency when no tasks show up for longer periods of
+		 * time.
+		 *
+		 * Ideally we would like to set bw_dl as min/guaranteed
+		 * freq and util + bw_dl as requested freq. However,
+		 * cpufreq is not yet ready for such an interface. So,
+		 * we only do the latter for now.
+		 */
+		util += cpu_bw_dl(rq);
+	}
 
 	return min(max, util);
 }
@@ -415,13 +424,11 @@ static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
 	 *
 	 * Since DL tasks have a much more advanced bandwidth control, it's
 	 * safe to assume that IO boost does not apply to those tasks.
-	 * Instead, since RT tasks are not utiliation clamped, we don't want
-	 * to apply clamping on IO boost while there is blocked RT
-	 * utilization.
+	 * Instead, for CFS and RT tasks we clamp the IO boost max value
+	 * considering the current constraints for the CPU.
 	 */
 	boost_max = sg_cpu->iowait_boost_max;
-	if (!cpu_util_irq(cpu_rq(sg_cpu->max)))
-		boost_max = uclamp_util(cpu_rq(sg_cpu->max), boost_max);
+	boost_max = uclamp_util(cpu_rq(sg_cpu->max), boost_max);
 
 	/* Double the boost at each request */
 	if (sg_cpu->iowait_boost) {
