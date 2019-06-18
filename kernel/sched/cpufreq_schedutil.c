@@ -204,8 +204,15 @@ static bool sugov_cpu_is_busy(struct sugov_cpu *sg_cpu)
 	sg_cpu->saved_idle_calls = idle_calls;
 	return ret;
 }
+
+static void sugov_cpu_is_busy_update(struct sugov_cpu *sg_cpu)
+{
+	unsigned long idle_calls = tick_nohz_get_idle_calls();
+	sg_cpu->saved_idle_calls = idle_calls;
+}
 #else
 static inline bool sugov_cpu_is_busy(struct sugov_cpu *sg_cpu) { return false; }
+static void sugov_cpu_is_busy_update(struct sugov_cpu *sg_cpu) {}
 #endif /* CONFIG_NO_HZ_COMMON */
 
 /**
@@ -569,8 +576,6 @@ static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
 	}
 }
 
-
-
 static void sugov_update_single(struct update_util_data *hook, u64 time,
 				unsigned int flags)
 {
@@ -595,6 +600,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 		return;
 
 	busy = sugov_cpu_is_busy(sg_cpu);
+	sugov_cpu_is_busy_update(sg_cpu);
 
 	if (flags & SCHED_CPUFREQ_DL) {
 		next_f = policy->cpuinfo.max_freq;
