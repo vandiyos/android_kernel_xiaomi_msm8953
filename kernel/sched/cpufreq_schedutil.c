@@ -209,7 +209,7 @@ static bool sugov_cpu_is_busy(struct sugov_cpu *sg_cpu)
 static void sugov_cpu_is_busy_update(struct sugov_cpu *sg_cpu,
 				     unsigned long util)
 {
-	unsigned long idle_calls = tick_nohz_get_idle_calls();
+	unsigned long idle_calls = tick_nohz_get_idle_calls_cpu(sg_cpu->max);
 	sg_cpu->saved_idle_calls = idle_calls;
 
 	/*
