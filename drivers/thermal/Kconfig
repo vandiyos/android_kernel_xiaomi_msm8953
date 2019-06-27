@@ -138,6 +138,22 @@ config CPU_THERMAL
 
 	  If you want this support, you should say Y here.
 
+config DEVFREQ_THERMAL
+	bool "Generic device cooling support"
+	depends on PM_DEVFREQ
+	depends on PM_OPP
+	help
+	  This implements the generic devfreq cooling mechanism through
+	  frequency reduction for devices using devfreq.
+
+	  This will throttle the device by limiting the maximum allowed DVFS
+	  frequency corresponding to the cooling level.
+
+	  In order to use the power extensions of the cooling device,
+	  devfreq should use the simple_ondemand governor.
+
+	  If you want this support, you should say Y here.
+
 config CLOCK_THERMAL
 	bool "Generic clock cooling support"
 	depends on COMMON_CLK
