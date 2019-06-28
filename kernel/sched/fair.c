@@ -6665,8 +6665,8 @@ static long
 compute_energy_simple(struct task_struct *p, int dst_cpu, struct perf_domain *pd)
 {
 	unsigned int max_util, util_cfs, cpu_util, cpu_cap;
-    unsigned long sum_util, energy = 0;
-    struct task_struct *tsk;
+	unsigned long sum_util, energy = 0;
+	struct task_struct *tsk;
 	int cpu;
 
 	for (; pd; pd = pd->next) {
