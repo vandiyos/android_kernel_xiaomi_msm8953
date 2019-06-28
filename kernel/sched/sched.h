@@ -2126,14 +2126,36 @@ static inline unsigned int uclamp_none(int clamp_id)
  *
  * Return: a clamped utilization signal for a given CPU.
  */
-static inline unsigned int uclamp_util(struct rq *rq, unsigned int util)
+unsigned int uclamp_eff_value(struct task_struct *p, unsigned int clamp_id);
+
+static __always_inline
+unsigned int uclamp_util_with(struct rq *rq, unsigned int util,
+			      struct task_struct *p)
 {
-	unsigned int min_util = rq->uclamp.value[UCLAMP_MIN];
-	unsigned int max_util = rq->uclamp.value[UCLAMP_MAX];
+	unsigned int min_util = READ_ONCE(rq->uclamp.value[UCLAMP_MIN]);
+	unsigned int max_util = READ_ONCE(rq->uclamp.value[UCLAMP_MAX]);
+
+	/*
+	 * Since CPU's {min,max}_util clamps are MAX aggregated considering
+	 * RUNNABLE tasks with _different_ clamps, we can end up with an
+	 * inversion. Fix it now when the clamps are applied.
+	 */
+	if (unlikely(min_util >= max_util))
+		return min_util;
 
 	return clamp(util, min_util, max_util);
 }
+
+static inline unsigned int uclamp_util(struct rq *rq, unsigned int util)
+{
+	return uclamp_util_with(rq, util, NULL);
+}
 #else /* CONFIG_UCLAMP_TASK */
+static inline unsigned int uclamp_util_with(struct rq *rq, unsigned int util,
+					    struct task_struct *p)
+{
+	return util;
+}
 static inline unsigned int uclamp_util(struct rq *rq, unsigned int util)
 {
 	return util;
