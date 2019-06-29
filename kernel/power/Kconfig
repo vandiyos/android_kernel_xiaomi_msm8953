@@ -330,7 +330,6 @@ config DEDUCE_WAKEUP_REASONS
 	bool
 	default n
 
-<<<<<<< HEAD
 config	BOEFFLA_WL_BLOCKER
 	bool "Boeffla generic wakelock blocker driver"
 	depends on PM
