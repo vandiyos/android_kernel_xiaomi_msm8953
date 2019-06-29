@@ -28,7 +28,7 @@ ZIP_MOVE=$KERNEL_DIR/AK-releases/
 ZIMAGE_DIR=$KERNEL_DIR/out/arch/arm64/boot
 
 # Vars
-BASE_AK_VER="SOVIET-STAR"
+BASE_AK_VER="REVOLT_GEN5"
 DATE=`date +"%Y%m%d-%H%M"`
 AK_VER="$BASE_AK_VER$VER"
 ZIP_NAME="$AK_VER"-"$DATE"
@@ -48,7 +48,7 @@ export CROSS_COMPILE=${HOME}/syberia/prebuilts/gcc/linux-x86/aarch64/aarch64-lin
 export CROSS_COMPILE_ARM32=${HOME}/syberia/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-
 
 # Kernel Details
-VER=".R3.01"
+VER=".R1"
 
 # Functions
 function clean_all {
