@@ -34,7 +34,7 @@ chown -R root:root $ramdisk/*;
 dump_boot;
 
 # begin ramdisk changes
-
+chmod 755 $ramdisk/init.revolt.sh;
 # end ramdisk changes
 
 write_boot;
